@@ -9,11 +9,6 @@ import (
 	"net"
 )
 
-type UserDatabaseService interface {
-	GetUserRecord(GetUserRecordRequest) (GetUserRecordReply, error)
-}
-type UserDatabaseClient struct{}
-
 type UserDatabaseDecoder struct {
 	reader *bufio.Reader
 }

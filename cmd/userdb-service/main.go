@@ -132,10 +132,7 @@ func main() {
 		go session.Handle(&ExampleDatabase{
 			userRecords: []userdb.UserRecord{
 				{
-					UserName: "arian",
-				},
-				{
-					UserName: "lennart",
+					Regular: userdb.Regular{UserName: "arian"},
 				},
 			},
 		})

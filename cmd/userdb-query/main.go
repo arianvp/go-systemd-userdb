@@ -7,6 +7,8 @@ import (
 	"log"
 
 	"net"
+
+	"github.com/arianvp/go-systemd-userdb/userdb"
 )
 
 type UserDatabaseDecoder struct {
@@ -35,11 +37,6 @@ func NewUserDatabaseEncoder(w io.Writer) UserDatabaseEncoder {
 	}
 }
 
-type UserRecord struct {
-	UserName string `json:"userName"`
-	// TODO other fields
-}
-
 type GetUserRecordRequestParams struct {
 	UserName string `json:"userName,omitempty"`
 	Uid      *int64 `json:"uid,omitempty"`
@@ -53,7 +50,7 @@ type GetUserRecordRequest struct {
 }
 
 type GetUserRecordReplyParams struct {
-	Record UserRecord `json:"record"`
+	Record userdb.UserRecord `json:"record"`
 }
 
 type GetUserRecordReply struct {

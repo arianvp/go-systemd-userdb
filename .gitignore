@@ -1,3 +1,4 @@
 .direnv/
 result
-./userdb-query
+/userdb-query
+/userdb-service

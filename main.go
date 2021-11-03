@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"encoding/json"
 	"io"
-	"io/ioutil"
 	"log"
 
 	"net"
@@ -84,58 +83,6 @@ func NewUserDatabaseDecoder(reader io.Reader) UserDatabaseDecoder {
 	}
 }
 
-func multiplex() error {
-	dir := "/run/systemd/userdb/"
-	files, err := ioutil.ReadDir(dir)
-	if err != nil {
-		return err
-	}
-
-	replies := make(chan *GetUserRecordReply)
-	errors := make(chan error)
-	for _, f := range files {
-		service := f.Name()
-		if service == "io.systemd.Multiplexer" {
-			continue
-		}
-		log.Printf("contacting %s", service)
-		go func() {
-			path := dir + service
-			conn, err := net.Dial("unix", path)
-			if err != nil {
-				// TODO?
-				log.Fatal(err)
-			}
-			defer conn.Close()
-			encoder := NewUserDatabaseEncoder(conn)
-			decoder := NewUserDatabaseDecoder(conn)
-
-			encoder.EncodeGetUserRecord(GetUserRecordRequest{
-				Method:     "io.systemd.UserDatabase.GetUserRecord",
-				Parameters: GetUserRecordRequestParams{Service: service},
-				More:       true,
-			})
-
-			continues := true
-			for continues {
-				reply, err := decoder.DecodeGetUserRecordReply()
-				if err != nil {
-					log.Print(err)
-					errors <- err
-					break
-				}
-				replies <- reply
-				continues = reply.Continues
-			}
-		}()
-	}
-	for reply := range replies {
-		log.Printf("%+v", reply)
-	}
-	return nil
-
-}
-
 func main() {
 
 	service := "io.systemd.Multiplexer"
@@ -146,13 +93,13 @@ func main() {
 	defer conn.Close()
 
 	encoder := NewUserDatabaseEncoder(conn)
-	decoder := NewUserDatabaseDecoder(conn)
-
 	encoder.EncodeGetUserRecord(GetUserRecordRequest{
 		Method:     "io.systemd.UserDatabase.GetUserRecord",
 		Parameters: GetUserRecordRequestParams{Service: service},
 		More:       true,
 	})
+
+	decoder := NewUserDatabaseDecoder(conn)
 
 	continues := true
 	for continues {

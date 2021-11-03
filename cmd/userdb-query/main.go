@@ -20,7 +20,7 @@ type UserDatabaseEncoder struct {
 	writer  io.Writer
 }
 
-func (e *UserDatabaseEncoder) EncodeGetUserRecord(req GetUserRecordRequest) error {
+func (e *UserDatabaseEncoder) EncodeGetUserRecord(req userdb.GetUserRecordRequest) error {
 	err := e.encoder.Encode(req)
 	if err != nil {
 		return err
@@ -37,34 +37,12 @@ func NewUserDatabaseEncoder(w io.Writer) UserDatabaseEncoder {
 	}
 }
 
-type GetUserRecordRequestParams struct {
-	UserName string `json:"userName,omitempty"`
-	Uid      *int64 `json:"uid,omitempty"`
-	Service  string `json:"service"`
-}
-
-type GetUserRecordRequest struct {
-	Method     string                     `json:"method"`
-	Parameters GetUserRecordRequestParams `json:"parameters"`
-	More       bool                       `json:"more"`
-}
-
-type GetUserRecordReplyParams struct {
-	Record userdb.UserRecord `json:"record"`
-}
-
-type GetUserRecordReply struct {
-	Parameters GetUserRecordReplyParams `json:"parameters"`
-	Continues  bool                     `json:"continues,omitempty"`
-	Error      string                   `json:"error,omitempty"`
-}
-
-func (d *UserDatabaseDecoder) DecodeGetUserRecordReply() (reply *GetUserRecordReply, err error) {
+func (d *UserDatabaseDecoder) DecodeGetUserRecordReply() (reply *userdb.GetUserRecordReply, err error) {
 	bytes, err := d.reader.ReadBytes(0)
 	if err != nil {
 		return nil, err
 	}
-	reply = new(GetUserRecordReply)
+	reply = new(userdb.GetUserRecordReply)
 	err = json.Unmarshal(bytes[:len(bytes)-1], reply)
 	return
 }
@@ -85,9 +63,9 @@ func main() {
 	defer conn.Close()
 
 	encoder := NewUserDatabaseEncoder(conn)
-	encoder.EncodeGetUserRecord(GetUserRecordRequest{
+	encoder.EncodeGetUserRecord(userdb.GetUserRecordRequest{
 		Method:     "io.systemd.UserDatabase.GetUserRecord",
-		Parameters: GetUserRecordRequestParams{Service: service},
+		Parameters: userdb.GetUserRecordRequestParams{Service: service},
 		More:       true,
 	})
 

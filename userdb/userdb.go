@@ -64,7 +64,10 @@ type GetUserRecordReply struct {
 }
 
 type GetGroupRecordRequest struct{}
-type GetGroupRecordReply struct{}
+type GetGroupRecordReply struct {
+	Continues bool  `json:"continues,omitempty"`
+	Error     Error `json:"error,omitempty"`
+}
 
 type GetMembershipsRequest struct{}
 type GetMembershipsReply struct {

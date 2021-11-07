@@ -19,7 +19,15 @@ type ExampleDatabase struct {
 	userRecords []userdb.UserRecord
 }
 
-func (d *ExampleDatabase) GetUserRecord(req *userdb.GetUserRecordRequest) func() userdb.GetUserRecordReply {
+func (db *ExampleDatabase) GetGroupRecord(req userdb.GetGroupRecordRequest) func() userdb.GetGroupRecordReply {
+	return nil
+}
+
+func (db *ExampleDatabase) GetMemberships(req userdb.GetMembershipsRequest) func() userdb.GetMembershipsReply {
+	return nil
+}
+
+func (d *ExampleDatabase) GetUserRecord(req userdb.GetUserRecordRequest) func() userdb.GetUserRecordReply {
 	current := 0
 	return func() (reply userdb.GetUserRecordReply) {
 		if req.Parameters.Uid != nil {
@@ -104,6 +112,23 @@ func (s *UserDatabaseSession) Handle(db userdb.UserDatabase) error {
 		}
 
 	case "io.systemd.UserDatabase.GetGroupRecord":
+		var req userdb.GetGroupRecordRequest
+		if err := json.Unmarshal(data, &req); err != nil {
+			return err
+		}
+		continues := true
+		b := [1]byte{0}
+		getGroupRecord := db.GetGroupRecord(req)
+		for continues {
+			reply := getGroupRecord()
+			if err := s.encoder.Encode(reply); err != nil {
+				return err
+			}
+			if _, err := s.conn.Write(b[:]); err != nil {
+				return err
+			}
+			continues = reply.Continues
+		}
 	case "io.systemd.UserDatabase.GetMemberships":
 	default:
 		return fmt.Errorf("unimplemented method %s", req.Parameters.Method)

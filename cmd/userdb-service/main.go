@@ -2,55 +2,59 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net"
+	"os"
+	"os/signal"
 	"syscall"
 
 	"github.com/arianvp/go-systemd-userdb/userdb"
 	"github.com/coreos/go-systemd/v22/activation"
 )
 
-type UserDatabase interface {
-	GetUserRecord(*userdb.GetUserRecordRequest) func() userdb.GetUserRecordReply
-}
-
 type ExampleDatabase struct {
 	userRecords []userdb.UserRecord
 }
 
 func (d *ExampleDatabase) GetUserRecord(req *userdb.GetUserRecordRequest) func() userdb.GetUserRecordReply {
-
 	current := 0
-	return func() userdb.GetUserRecordReply {
+	return func() (reply userdb.GetUserRecordReply) {
 		if req.Parameters.Uid != nil {
-			return userdb.GetUserRecordReply{
-				Parameters: userdb.GetUserRecordReplyParams{},
-				Continues:  false,
-				Error:      "",
-			}
-		} else if req.Parameters.UserName != nil {
-			return userdb.GetUserRecordReply{
-				Parameters: userdb.GetUserRecordReplyParams{},
-				Continues:  false,
-				Error:      "",
-			}
-		} else if req.More {
-			record := d.userRecords[current]
-			continues := current < len(d.userRecords)-1
-			current++
-			return userdb.GetUserRecordReply{
-				Parameters: userdb.GetUserRecordReplyParams{
-					Record: record,
-				},
-				Continues: continues,
-			}
-		} else {
-			return userdb.GetUserRecordReply{
-				Error: "unknown",
+			for _, r := range d.userRecords {
+				if r.Uid == req.Parameters.Uid {
+					reply.Parameters.Record = &r
+					break
+				}
 			}
 		}
+		if req.Parameters.UserName != nil {
+			for _, r := range d.userRecords {
+				if r.UserName == *req.Parameters.UserName {
+					if reply.Parameters.Record == nil || reply.Parameters.Record.Uid == r.Uid {
+						reply.Parameters.Record = &r
+						break
+					} else {
+						reply.Error = userdb.ConflictingRecordFound
+						return
+					}
+				}
+			}
+		}
+		if (req.Parameters.Uid != nil || req.Parameters.UserName != nil) && reply.Parameters.Record == nil {
+			reply.Error = userdb.NoRecodFound
+			return
+		}
+		// list all
+		if req.Parameters.Uid == nil && req.Parameters.UserName == nil && req.More {
+			reply.Parameters.Record = &d.userRecords[current]
+			continues := current < len(d.userRecords)-1
+			current++
+			reply.Continues = continues
+		}
+		return
 	}
 }
 
@@ -61,7 +65,8 @@ type UserDatabaseSession struct {
 }
 
 // TODO; should I return errors or report them inline?
-func (s *UserDatabaseSession) Handle(database UserDatabase) error {
+func (s *UserDatabaseSession) Handle(db userdb.UserDatabase) error {
+	defer s.conn.Close()
 	data, err := s.reader.ReadBytes(0)
 	if err != nil {
 		return err
@@ -86,7 +91,7 @@ func (s *UserDatabaseSession) Handle(database UserDatabase) error {
 		}
 		continues := true
 		b := [1]byte{0}
-		getUserRecord := database.GetUserRecord(&req)
+		getUserRecord := db.GetUserRecord(req)
 		for continues {
 			reply := getUserRecord()
 			if err := s.encoder.Encode(reply); err != nil {
@@ -106,39 +111,82 @@ func (s *UserDatabaseSession) Handle(database UserDatabase) error {
 	return nil
 }
 
+type server struct {
+	l net.Listener
+}
+
+// Serve always returns a non-nill error and closes l
+func (srv *server) Serve(ctx context.Context) error {
+	defer srv.l.Close()
+	for {
+		c, err := srv.l.Accept()
+		if err != nil {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			default:
+				return err
+			}
+		}
+		go func() {
+			<-ctx.Done()
+			c.Close()
+		}()
+		session := UserDatabaseSession{
+			conn:    c,
+			encoder: json.NewEncoder(c),
+			reader:  bufio.NewReader(c),
+		}
+		uid := uint32(999999)
+		go session.Handle(&ExampleDatabase{
+			userRecords: []userdb.UserRecord{
+				{
+					UserFields: userdb.UserFields{
+						UserName: "arian",
+						Uid:      &uid,
+						Gid:      &uid,
+					},
+				},
+			},
+		})
+	}
+}
+
+// returns a context that gets cancalled on any of the passed signals
+func signalContext(sig ...os.Signal) context.Context {
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, sig...)
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		<-c
+		cancel()
+	}()
+	return ctx
+}
+
 func main() {
+	ctx := signalContext(os.Interrupt, syscall.SIGTERM)
 	listeners, err := activation.Listeners()
 	if err != nil {
 		log.Fatal(err)
 	}
-	var listener net.Listener
+	listenConfig := net.ListenConfig{}
+	var l net.Listener
 	if len(listeners) != 1 {
 		oldmask := syscall.Umask(0)
-		listener, err = net.Listen("unix", "/run/systemd/userdb/me.arianvp.userdb")
+		l, err = listenConfig.Listen(ctx, "unix", "./lol-sock")
 		if err != nil {
 			log.Fatal(err)
 		}
 		syscall.Umask(oldmask)
 	} else {
-		listener = listeners[1]
+		l = listeners[1]
 	}
-	for {
-		conn, err := listener.Accept()
-		session := UserDatabaseSession{
-			conn:    conn,
-			encoder: json.NewEncoder(conn),
-			reader:  bufio.NewReader(conn),
-		}
-		go session.Handle(&ExampleDatabase{
-			userRecords: []userdb.UserRecord{
-				{
-					Regular: userdb.Regular{UserName: "arian"},
-				},
-			},
-		})
-		if err != nil {
-			log.Fatal(err)
-		}
+	if err != nil {
+		log.Fatal(err)
 	}
-
+	srv := server{l}
+	go srv.Serve(ctx)
+	<-ctx.Done()
+	log.Print(ctx.Err())
 }

@@ -1,5 +1,15 @@
 package userdb
 
+type Error string
+
+const (
+	EnumerationNotSupported Error = "io.systemd.UserDatabase.EnumerationNotSupported"
+	ConflictingRecordFound  Error = "io.systemd.UserDatabase.ConflictingRecordFound"
+	ServiceNotAvailable     Error = "io.systemd.UserDatabase.ServiceNotAvailable"
+	BadService              Error = "io.systemd.UserDatabase.BadService"
+	NoRecodFound            Error = "io.systemd.UserDatabase.NoRecordFound"
+)
+
 type UserFields struct {
 	UserName string  `json:"userName"`
 	Uid      *uint32 `json:"uid,omitempty"`
@@ -43,11 +53,27 @@ type GetUserRecordRequest struct {
 }
 
 type GetUserRecordReplyParams struct {
-	Record UserRecord `json:"record"`
+	Record *UserRecord `json:"record,omitempty"`
 }
 
+// TODO: Make this implicit; and let GetUserRecord return GetUserRecordReplyParams,error
 type GetUserRecordReply struct {
 	Parameters GetUserRecordReplyParams `json:"parameters"`
 	Continues  bool                     `json:"continues,omitempty"`
-	Error      string                   `json:"error,omitempty"`
+	Error      Error                    `json:"error,omitempty"`
+}
+
+type GetGroupRecordRequest struct{}
+type GetGroupRecordReply struct{}
+
+type GetMembershipsRequest struct{}
+type GetMembershipsReply struct {
+	UserName  string `json:"userName"`
+	GroupName string `json:"groupName"`
+}
+
+type UserDatabase interface {
+	GetUserRecord(GetUserRecordRequest) func() GetUserRecordReply
+	GetGroupRecord(GetGroupRecordRequest) func() GetGroupRecordReply
+	GetMemberships(GetMembershipsRequest) func() GetMembershipsReply
 }

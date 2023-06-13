@@ -177,20 +177,9 @@ func (srv *server) Serve(ctx context.Context) error {
 	}
 }
 
-// returns a context that gets cancalled on any of the passed signals
-func signalContext(sig ...os.Signal) context.Context {
-	c := make(chan os.Signal, 1)
-	signal.Notify(c, sig...)
-	ctx, cancel := context.WithCancel(context.Background())
-	go func() {
-		<-c
-		cancel()
-	}()
-	return ctx
-}
-
 func main() {
-	ctx := signalContext(os.Interrupt, syscall.SIGTERM)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 	listeners, err := activation.Listeners()
 	if err != nil {
 		log.Fatal(err)
@@ -213,5 +202,6 @@ func main() {
 	srv := server{l}
 	go srv.Serve(ctx)
 	<-ctx.Done()
+	stop()
 	log.Print(ctx.Err())
 }

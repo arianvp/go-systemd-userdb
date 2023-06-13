@@ -52,7 +52,7 @@ func (d *ExampleDatabase) GetUserRecord(req userdb.GetUserRecordRequest) func() 
 			}
 		}
 		if (req.Parameters.Uid != nil || req.Parameters.UserName != nil) && reply.Parameters.Record == nil {
-			reply.Error = userdb.NoRecodFound
+			reply.Error = userdb.NoRecordFound
 			return
 		}
 		// list all

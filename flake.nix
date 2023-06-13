@@ -8,13 +8,14 @@
       let pkgs = nixpkgs.legacyPackages.${system}; in
       {
 
-        defaultPackage = pkgs.buildGoModule {
+        packages.default = pkgs.buildGoModule {
           pname = "go-systemd-userdb";
           version = "0.0.1";
           src = pkgs.lib.cleanSource ./.;
+          vendorHash = "sha256-Npmncmq3DXLCD1lVDCgtwCJzwEW1cuWBkTkCF5jaq/w=";
         };
 
-        devShell = with pkgs; mkShell {
+        devShells.default = with pkgs; mkShell {
           nativeBuildInputs = [
             bashInteractive
             go

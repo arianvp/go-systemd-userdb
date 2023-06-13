@@ -7,7 +7,7 @@ const (
 	ConflictingRecordFound  Error = "io.systemd.UserDatabase.ConflictingRecordFound"
 	ServiceNotAvailable     Error = "io.systemd.UserDatabase.ServiceNotAvailable"
 	BadService              Error = "io.systemd.UserDatabase.BadService"
-	NoRecodFound            Error = "io.systemd.UserDatabase.NoRecordFound"
+	NoRecordFound           Error = "io.systemd.UserDatabase.NoRecordFound"
 )
 
 type UserFields struct {
